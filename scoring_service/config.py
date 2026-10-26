@@ -54,7 +54,7 @@ class Settings:
     ai_base_url: str = "http://10.154.0.1:8080/v1"
     ai_model: str = "gemma4:12b"
     ai_api_key: str = ""
-    ai_timeout_seconds: float = 6.0
+    ai_timeout_seconds: float = 30.0
 
     @classmethod
     def from_env(cls) -> "Settings":

@@ -1,33 +1,11 @@
-FROM alpine:3.19
+FROM alpine:3.22
 
-RUN apk add --no-cache wireguard-tools socat iproute2 iptables && \
-    apk add --no-cache --repository=https://cdn.alpinelinux.org/alpine/edge/community wireguard-go || true
+RUN apk add --no-cache wireguard-tools wireguard-go socat iproute2 iptables
 
-WORKDIR /etc/wireguard
+COPY scripts/llm-proxy-entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-RUN echo '#!/bin/sh' > /entrypoint.sh && \
-    echo 'if [ -z "$WG_PRIVATE_KEY" ]; then' >> /entrypoint.sh && \
-    echo '  echo "[llm-proxy] WG_PRIVATE_KEY is not set. Running in offline fallback mode.";' >> /entrypoint.sh && \
-    echo '  exec sleep infinity;' >> /entrypoint.sh && \
-    echo 'fi' >> /entrypoint.sh && \
-    echo 'echo "[llm-proxy] Configuring WireGuard wg0 tunnel...";' >> /entrypoint.sh && \
-    echo 'mkdir -p /etc/wireguard' >> /entrypoint.sh && \
-    echo 'cat <<EOF> /etc/wireguard/wg0.conf' >> /entrypoint.sh && \
-    echo '[Interface]' >> /entrypoint.sh && \
-    echo 'PrivateKey = $WG_PRIVATE_KEY' >> /entrypoint.sh && \
-    echo 'Address = ${WG_ADDRESS:-10.154.53.14/16}' >> /entrypoint.sh && \
-    echo 'DNS = 1.1.1.1' >> /entrypoint.sh && \
-    echo '' >> /entrypoint.sh && \
-    echo '[Peer]' >> /entrypoint.sh && \
-    echo 'PublicKey = ${WG_PEER_PUBLIC_KEY:-81kxTfIHmSpiPMZdeEBakD0w1seqr+C27aQePY2D0F4=}' >> /entrypoint.sh && \
-    echo 'Endpoint = ${WG_ENDPOINT:-93.190.110.225:56598}' >> /entrypoint.sh && \
-    echo 'AllowedIPs = 10.154.0.0/16' >> /entrypoint.sh && \
-    echo 'PersistentKeepalive = 25' >> /entrypoint.sh && \
-    echo 'EOF' >> /entrypoint.sh && \
-    echo 'chmod 600 /etc/wireguard/wg0.conf' >> /entrypoint.sh && \
-    echo 'wg-quick up wg0 || { echo "[llm-proxy] WireGuard failed to start. Fallback active."; exec sleep infinity; }' >> /entrypoint.sh && \
-    echo 'echo "[llm-proxy] WireGuard is UP! Proxying TCP :8080 -> 10.154.0.1:8080...";' >> /entrypoint.sh && \
-    echo 'exec socat TCP-LISTEN:8080,fork,reuseaddr TCP:10.154.0.1:8080' >> /entrypoint.sh && \
-    chmod +x /entrypoint.sh
+HEALTHCHECK --interval=5s --timeout=3s --start-period=10s --retries=5 \
+    CMD wg show wg0 >/dev/null && nc -z 127.0.0.1 8080
 
 ENTRYPOINT ["/entrypoint.sh"]

@@ -211,7 +211,7 @@ func (h *Handler) SubmitApplication(c *gin.Context) {
 }
 func (h *Handler) runScoring(c *gin.Context, app models.Application, documents bool) {
 	// Finish claimed work even if the browser disconnects, within a bounded timeout.
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 8*time.Second)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(c.Request.Context()), 45*time.Second)
 	defer cancel()
 	db := h.DB.WithContext(ctx)
 	var company models.Company

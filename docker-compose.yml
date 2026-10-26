@@ -25,7 +25,7 @@ services:
     devices:
       - /dev/net/tun:/dev/net/tun
     environment:
-      - WG_PRIVATE_KEY=${WG_PRIVATE_KEY:-}
+      - WG_PRIVATE_KEY=${WG_PRIVATE_KEY:?Задайте WG_PRIVATE_KEY в .env для доступа к LLM}
       - WG_ADDRESS=${WG_ADDRESS:-10.154.53.14/16}
       - WG_PEER_PUBLIC_KEY=${WG_PEER_PUBLIC_KEY:-81kxTfIHmSpiPMZdeEBakD0w1seqr+C27aQePY2D0F4=}
       - WG_ENDPOINT=${WG_ENDPOINT:-93.190.110.225:56598}
@@ -56,7 +56,7 @@ services:
       scoring:
         condition: service_started
       llm-proxy:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/healthz"]
@@ -75,22 +75,23 @@ services:
       AI_BASE_URL: ${AI_BASE_URL:-http://llm-proxy:8080/v1}
       AI_MODEL: ${AI_MODEL:-gemma4:12b}
       AI_API_KEY: ${AI_API_KEY:-}
-      # Бюджет LLM держим ниже HTTP-таймаута Go-клиента (4с), иначе бэкенд
+      # Бюджет LLM держим ниже HTTP-таймаута Go-клиента (40с), иначе бэкенд
       # уйдёт в fallback раньше, чем сервис ответит.
-      AI_TIMEOUT: ${SCORING_AI_TIMEOUT:-5.0}
+      AI_TIMEOUT: ${SCORING_AI_TIMEOUT:-30.0}
       DSTI_APPROVE_MAX: ${DSTI_APPROVE_MAX:-0.35}
       DSTI_COUNTER_MAX: ${DSTI_COUNTER_MAX:-0.55}
     ports:
       - "${SCORING_PORT:-8000}:8000"
     depends_on:
-      - llm-proxy
+      llm-proxy:
+        condition: service_healthy
     restart: unless-stopped
 
   frontend:
     build:
       context: ./frontend
     ports:
-      - "3000:80"
+      - "${FRONTEND_PORT:-80}:80"
     depends_on:
       - backend
     restart: unless-stopped

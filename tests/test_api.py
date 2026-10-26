@@ -6,11 +6,30 @@
 
 from __future__ import annotations
 
+import json
+
+import httpx
+import pytest
 from fastapi.testclient import TestClient
 
-from scoring_service.app import app
+from scoring_service.app import app, explainer
 
 client = TestClient(app)
+LLM_TEXT = "Банк предлагает скорректированные условия. Платёж соответствует доходам бизнеса."
+
+
+@pytest.fixture(autouse=True)
+def llm_transport(monkeypatch):
+    """Проверяем HTTP-запрос к LLM без подключения к общему WireGuard."""
+    requests = []
+
+    def respond(request):
+        requests.append(request)
+        return httpx.Response(200, json={"choices": [{"message": {"content": LLM_TEXT}}]})
+
+    with httpx.Client(transport=httpx.MockTransport(respond)) as llm_client:
+        monkeypatch.setattr(explainer, "_client", llm_client)
+        yield requests
 
 
 def payload(**overrides) -> dict:
@@ -34,6 +53,20 @@ def test_healthz():
     resp = client.get("/healthz")
     assert resp.status_code == 200
     assert resp.json()["status"] == "ok"
+
+
+def test_evaluate_requests_llm_and_returns_its_explanation(llm_transport):
+    resp = client.post("/api/v1/scoring/evaluate", json=payload())
+    assert resp.status_code == 200
+    assert resp.json()["ai_explanation"] == LLM_TEXT
+    assert len(llm_transport) == 1
+    request = llm_transport[0]
+    assert request.method == "POST"
+    assert str(request.url) == f"{explainer.s.ai_base_url.rstrip('/')}/chat/completions"
+    body = json.loads(request.content)
+    assert body["model"] == explainer.s.ai_model
+    assert body["messages"][0]["role"] == "system"
+    assert "COUNTER_OFFER" in body["messages"][1]["content"]
 
 
 def test_evaluate_returns_full_contract():

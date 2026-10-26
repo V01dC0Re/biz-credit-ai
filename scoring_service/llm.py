@@ -50,6 +50,7 @@ class LLMExplainer:
         try:
             text = self._ask_llm(req, result)
             if text:
+                logger.info("LLM explanation received (model=%s)", self.s.ai_model)
                 return self._clean(text)
         except Exception as exc:  # noqa: BLE001 - деградируем мягко
             logger.warning("LLM explanation failed, using template: %s", exc)

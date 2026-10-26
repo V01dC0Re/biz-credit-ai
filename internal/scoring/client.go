@@ -45,7 +45,7 @@ type Client struct {
 }
 
 func New(baseURL string) *Client {
-	return &Client{BaseURL: strings.TrimRight(baseURL, "/"), HTTP: &http.Client{Timeout: 6 * time.Second}}
+	return &Client{BaseURL: strings.TrimRight(baseURL, "/"), HTTP: &http.Client{Timeout: 40 * time.Second}}
 }
 func Payment(amount int64, term int, rate float64) int64 {
 	if term <= 0 || amount <= 0 {

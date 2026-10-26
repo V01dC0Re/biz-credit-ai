@@ -52,9 +52,24 @@ biz-credit-ai/
 
 ```sh
 cp .env.example .env
-# Отредактируйте JWT_SECRET и DB_PASSWORD при необходимости
+# Задайте WG_PRIVATE_KEY, собственные JWT_SECRET и DB_PASSWORD
 docker compose up --build -d
 ```
+
+Для доступа к Gemma задайте `WG_PRIVATE_KEY` в локальном `.env` (не в
+`.env.example`). Остальные параметры WireGuard уже настроены. Не включайте
+этот туннель одновременно на двух машинах с одним ключом.
+
+Скоринг отправляет запрос объяснения в `http://llm-proxy:8080/v1/chat/completions`,
+а прокси передаёт его через WireGuard в `10.154.0.1:8080`. Без ключа Compose
+сообщит об ошибке; при ошибке запуска туннеля контейнер прокси завершится с
+ошибкой. Состояние можно проверить командами `docker compose ps` и
+`docker compose logs llm-proxy scoring`.
+
+Расчёт решения выполняет движок скоринга, LLM формирует объяснение. При ошибке
+или таймауте запроса LLM остаётся резервное шаблонное объяснение с записью в лог.
+Статус healthcheck прокси проверяет локальный туннель и TCP-прокси, но не
+гарантирует доступность удалённой модели.
 
 Проверка работоспособности:
 ```sh
@@ -65,6 +80,23 @@ curl http://localhost:8080/healthz
 ```sh
 docker compose down
 ```
+
+#### Домен fortis-ss.ru
+
+Nginx фронтенда настроен на `fortis-ss.ru`. Docker Compose публикует его на
+порту 80 (можно переопределить через `FRONTEND_PORT` в `.env`). Запросы `/api/`
+передаются в контейнер бэкенда.
+
+Для запуска на сервере:
+
+1. Направьте DNS-запись `A` для `fortis-ss.ru` на публичный IPv4 сервера.
+2. Освободите порт 80 и разрешите входящие TCP-подключения на этот порт.
+3. Задайте собственные `JWT_SECRET` и `DB_PASSWORD` в `.env`.
+4. Выполните `docker compose up --build -d`.
+
+Сайт будет доступен по `http://fortis-ss.ru`. HTTPS пока не настроен:
+для него потребуется TLS-сертификат и настройка порта 443 в Nginx либо
+внешний прокси с TLS.
 
 ### Вариант 2. Локальный запуск
 
@@ -113,7 +145,7 @@ AI_TIMEOUT=30
 # Сервис скоринга (Python). Пусто -> Go использует demo-правила.
 SCORING_BASE_URL=http://scoring:8000
 SCORING_PORT=8000
-SCORING_AI_TIMEOUT=2.5
+SCORING_AI_TIMEOUT=30.0
 DSTI_APPROVE_MAX=0.35
 DSTI_COUNTER_MAX=0.55
 ```
