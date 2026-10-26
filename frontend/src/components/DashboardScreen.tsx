@@ -199,7 +199,7 @@ export const DashboardScreen: React.FC<Props> = ({ onNavigateToApplication, onNa
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
       {/* Top Banner: Company Profile */}
-      <div className="card" style={{ background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', color: 'white', marginBottom: 0 }}>
+      <div className="card" style={{ background: 'linear-gradient(135deg, #233142 0%, #455D7A 100%)', color: 'white', marginBottom: 0 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
             <div style={{ fontSize: '0.85rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -243,7 +243,10 @@ export const DashboardScreen: React.FC<Props> = ({ onNavigateToApplication, onNa
       </div>
 
       {/* Active Application Card */}
-      <div className="card" style={{ marginBottom: 0 }}>
+      <div
+          className="card dashboard-application-card"
+          style={{ marginBottom: 0 }}
+      >
         <div className="card-title">
           <span>Активная кредитная заявка</span>
           {active_application && getStatusBadge(active_application.status)}
@@ -264,7 +267,7 @@ export const DashboardScreen: React.FC<Props> = ({ onNavigateToApplication, onNa
               </div>
               <div className="stat-tile">
                 <div className="stat-label">Ежемесячный платеж</div>
-                <div className="stat-value" style={{ color: active_application.monthly_payment > 0 ? '#0f172a' : 'inherit' }}>
+                <div className="stat-value" style={{ color: active_application.monthly_payment > 0 ? '#233142' : 'inherit' }}>
                   {active_application.monthly_payment > 0 ? formatMoney(active_application.monthly_payment) : '—'}
                 </div>
                 <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Аннуитет</div>
@@ -280,12 +283,12 @@ export const DashboardScreen: React.FC<Props> = ({ onNavigateToApplication, onNa
               </div>
             </div>
 
-            <div style={{ fontSize: '0.9rem', marginBottom: '1rem', color: '#475569' }}>
+            <div style={{ fontSize: '0.9rem', marginBottom: '1rem', color: '#455D7A' }}>
               <strong>Цель кредита:</strong> {active_application.purpose || 'Не указана'}
             </div>
 
             {active_application.ai_explanation && (
-              <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '0.85rem', borderRadius: '8px', marginBottom: '1.25rem', fontSize: '0.9rem' }}>
+              <div style={{ background: '#F7F9FB', border: '1px solid #CDDDE9', padding: '0.85rem', borderRadius: '8px', marginBottom: '1.25rem', fontSize: '0.9rem' }}>
                 <strong style={{ display: 'block', marginBottom: '0.35rem', color: '#1e40af' }}>🤖 Пояснение скоринга:</strong>
                 <MarkdownView content={active_application.ai_explanation} />
               </div>
@@ -333,8 +336,8 @@ export const DashboardScreen: React.FC<Props> = ({ onNavigateToApplication, onNa
       <div 
         onClick={onNavigateToCalculator}
         style={{
-          background: 'linear-gradient(90deg, #eff6ff 0%, #f0fdf4 100%)',
-          border: '1px solid #bfdbfe',
+          background: 'linear-gradient(135deg, #FFE6DD 0%, #F7F9FB 100%)',
+          border: '1px solid #CDDDE9',
           borderRadius: 'var(--radius)',
           padding: '1.1rem 1.5rem',
           display: 'flex',
@@ -351,7 +354,7 @@ export const DashboardScreen: React.FC<Props> = ({ onNavigateToApplication, onNa
             🧮
           </div>
           <div>
-            <div style={{ fontWeight: 700, fontSize: '1.05rem', color: '#1e3a8a' }}>
+            <div style={{ fontWeight: 700, fontSize: '1.05rem', color: '#233142' }}>
               Оценить шансы в кредитном калькуляторе
             </div>
             <div style={{ fontSize: '0.85rem', color: '#475569', marginTop: '0.15rem' }}>
@@ -373,7 +376,7 @@ export const DashboardScreen: React.FC<Props> = ({ onNavigateToApplication, onNa
       <div className="card">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
           <div>
-            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+            <h2 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#233142', margin: 0 }}>
               Финансовый пульс и база знаний для бизнеса
             </h2>
             <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.2rem' }}>
