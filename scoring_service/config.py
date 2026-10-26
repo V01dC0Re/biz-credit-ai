@@ -68,8 +68,10 @@ class Settings:
             score_manual_review_high=_env_int("SCORE_MANUAL_REVIEW_HIGH", cls.score_manual_review_high),
             min_offer_amount=_env_int("MIN_OFFER_AMOUNT", cls.min_offer_amount),
             amount_round_step=_env_int("AMOUNT_ROUND_STEP", cls.amount_round_step),
-            ai_base_url=os.getenv("AI_BASE_URL", cls.ai_base_url),
-            ai_model=os.getenv("AI_MODEL", cls.ai_model),
+            # Пустой AI_BASE_URL (например, когда WireGuard-прокси выключен)
+            # трактуем как значение по умолчанию, а не как пустую строку.
+            ai_base_url=os.getenv("AI_BASE_URL") or cls.ai_base_url,
+            ai_model=os.getenv("AI_MODEL") or cls.ai_model,
             ai_api_key=os.getenv("AI_API_KEY", cls.ai_api_key),
             ai_timeout_seconds=_env_float("AI_TIMEOUT", cls.ai_timeout_seconds),
         )
