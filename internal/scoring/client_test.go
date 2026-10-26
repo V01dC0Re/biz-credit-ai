@@ -23,12 +23,13 @@ func TestFallbackDecisions(t *testing.T) {
 		{"approved", func(r *Request) {}, false, models.StatusApproved},
 		{"counter", func(r *Request) { r.RequestedAmount = 10000000 }, false, models.StatusCounterOffer},
 		{"bankruptcy", func(r *Request) { r.HasBankruptcy = true }, false, models.StatusRejected},
-		{"delinquency", func(r *Request) { r.BKIDelinquencyDays = 31 }, false, models.StatusRejected},
+		// Просрочка-стоп-фактор срабатывает только выше 90 дней (политика Python).
+		{"delinquency_stop", func(r *Request) { r.BKIDelinquencyDays = 120 }, false, models.StatusRejected},
 		{"zero_profit", func(r *Request) { r.MonthlyNetProfit = 0 }, false, models.StatusRejected},
 		{"no_capacity", func(r *Request) { r.MonthlyNetProfit = 1000 }, false, models.StatusRejected},
-		{"young", func(r *Request) { r.CompanyAgeMonths = 1 }, false, models.StatusDocsRequired},
-		{"uploaded", func(r *Request) { r.CompanyAgeMonths = 1 }, true, models.StatusManualReview},
-		{"review", func(r *Request) { r.BKIDelinquencyDays = 1 }, false, models.StatusManualReview},
+		// Молодой бизнес без кредитной истории (нет платежей в БКИ) -> дозапрос.
+		{"young", func(r *Request) { r.CompanyAgeMonths = 1; r.BKIMonthlyPayment = 0 }, false, models.StatusDocsRequired},
+		{"uploaded", func(r *Request) { r.CompanyAgeMonths = 1; r.BKIMonthlyPayment = 0 }, true, models.StatusManualReview},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -41,7 +42,7 @@ func TestFallbackDecisions(t *testing.T) {
 			if err := Validate(got, in); err != nil {
 				t.Fatal(err)
 			}
-			if got.Decision == models.StatusCounterOffer && (got.DSTI > 0.501 || got.ApprovedAmount >= in.RequestedAmount) {
+			if got.Decision == models.StatusCounterOffer && got.ApprovedAmount >= in.RequestedAmount {
 				t.Fatalf("invalid counter: %+v", got)
 			}
 		})

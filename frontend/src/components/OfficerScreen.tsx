@@ -24,6 +24,39 @@ export const OfficerScreen: React.FC = () => {
   const [dossierTerm, setDossierTerm] = useState<number>(0);
   const [dossierComment, setDossierComment] = useState<string>('');
 
+  // UC 2.2: AI-саммари по заявке для риск-офицера
+  const [aiSummary, setAiSummary] = useState<string>('');
+  const [summaryLoading, setSummaryLoading] = useState<boolean>(false);
+
+  const generateSummary = async (app: Application) => {
+    setSummaryLoading(true);
+    setAiSummary('');
+    try {
+      const res = await api.officerSummary({
+        application_id: app.id,
+        company_name: app.company?.name || `Компания #${app.company_id}`,
+        inn: app.company?.inn || '',
+        okved: app.company?.okved || '',
+        company_age_months: app.company?.company_age_months || 0,
+        monthly_revenue: app.company?.monthly_revenue || app.company?.revenue || 0,
+        monthly_net_profit: app.company?.monthly_net_profit || 0,
+        requested_amount: app.requested_amount || app.amount,
+        requested_term_months: app.requested_term_months || app.term_months,
+        score_value: app.score_value || 0,
+        dsti: app.dsti || 0,
+        bki_delinquency_days: app.company?.bki_delinquency_days || 0,
+        bki_active_loans_monthly_payment: app.company?.bki_active_loans_monthly_payment || 0,
+        has_bankruptcy: app.company?.has_bankruptcy || false,
+        status: app.status,
+      });
+      setAiSummary(res.summary);
+    } catch (e) {
+      setAiSummary('Не удалось сформировать выжимку. Проверьте доступность AI-сервиса.');
+    } finally {
+      setSummaryLoading(false);
+    }
+  };
+
   const fetchApplications = async () => {
     try {
       setLoading(true);
@@ -48,6 +81,7 @@ export const OfficerScreen: React.FC = () => {
     setDossierAmount(initialAmount);
     setDossierTerm(initialTerm);
     setDossierComment(app.officer_comment || '');
+    setAiSummary('');
   };
 
   const handleDecision = async (
@@ -507,6 +541,32 @@ export const OfficerScreen: React.FC = () => {
                   <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', lineHeight: 1.5 }}>
                     <MarkdownView content={dossierApp.ai_explanation || dossierApp.rejection_reason || 'Автоматическая оценка рисков проведена на базе финансовых показателей компании, кредитной истории БКИ и норматива долговой нагрузки DSTI.'} />
                   </div>
+                </div>
+
+                {/* UC 2.2: ИИ-саммари для риск-офицера */}
+                <div style={{ background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '6px', padding: '0.9rem', marginTop: '0.75rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <div className="dossier-label" style={{ margin: 0 }}>
+                      ✨ ИИ-саммари для офицера
+                    </div>
+                    <button
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.8rem', padding: '0.35rem 0.75rem' }}
+                      onClick={() => generateSummary(dossierApp)}
+                      disabled={summaryLoading}
+                    >
+                      {summaryLoading ? 'Анализ...' : 'Сгенерировать выжимку'}
+                    </button>
+                  </div>
+                  {aiSummary ? (
+                    <div style={{ fontSize: '0.9rem', color: 'var(--text-main)', lineHeight: 1.5 }}>
+                      <MarkdownView content={aiSummary} />
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                      Нажмите кнопку, чтобы получить краткую выжимку по заявке: уровень риска, ключевые факторы и рекомендацию.
+                    </div>
+                  )}
                 </div>
               </div>
 

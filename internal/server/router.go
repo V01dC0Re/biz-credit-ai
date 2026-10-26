@@ -82,6 +82,12 @@ func NewRouter(db *gorm.DB, tokens *auth.TokenManager, cfg ...*config.Config) *g
 	authRoutes.POST("/register", h.Register)
 	authRoutes.POST("/login", h.Login)
 
+	// Локальные моки внешних сервисов (UC 3.1): ФНС/ЕГРЮЛ и БКИ.
+	// Воспроизводят контракт интеграций без доступа к корпоративным системам.
+	mockRoutes := r.Group("/internal/mocks")
+	mockRoutes.GET("/fns/:inn", h.MockFNS)
+	mockRoutes.GET("/bki/:inn", h.MockBKI)
+
 	dashboard := r.Group("/api/dashboard", middleware.AuthMiddleware(db, tokens))
 	dashboard.GET("", h.Dashboard)
 	dashboard.GET("/", h.Dashboard)
@@ -103,6 +109,8 @@ func NewRouter(db *gorm.DB, tokens *auth.TokenManager, cfg ...*config.Config) *g
 	h.Scoring = scoring.New(appCfg.ScoringBaseURL)
 	client := r.Group("/api", middleware.AuthMiddleware(db, tokens), handlers.RequireRole(models.RoleClient))
 	client.GET("/products", h.Products)
+	// UC 1.3: автозаполнение реквизитов по ИНН через мок ФНС/ЕГРЮЛ.
+	client.GET("/company/lookup", h.CompanyLookup)
 	client.GET("/applications", h.ListApplications)
 	client.POST("/applications", h.CreateApplication)
 	client.GET("/applications/:id", h.GetApplication)

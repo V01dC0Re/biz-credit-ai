@@ -126,6 +126,31 @@ export const ApplicationFlowScreen: React.FC<Props> = ({ initialAppId, initialPa
   const [aiHint, setAiHint] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState<boolean>(false);
 
+  // UC 1.3: автозаполнение реквизитов по ИНН (мок ФНС/ЕГРЮЛ)
+  const [innInput, setInnInput] = useState<string>('');
+  const [innLoading, setInnLoading] = useState<boolean>(false);
+  const [innResult, setInnResult] = useState<{ name: string; okved: string; company_age_months: number } | null>(null);
+  const [innError, setInnError] = useState<string | null>(null);
+
+  const handleInnLookup = async () => {
+    const inn = innInput.trim();
+    if (inn.length < 10) {
+      setInnError('Введите ИНН из 10 или 12 цифр');
+      return;
+    }
+    setInnLoading(true);
+    setInnError(null);
+    setInnResult(null);
+    try {
+      const res = await api.lookupCompany(inn);
+      setInnResult({ name: res.name, okved: res.okved, company_age_months: res.company_age_months });
+    } catch (e) {
+      setInnError(e instanceof Error ? e.message : 'Не удалось получить данные по ИНН');
+    } finally {
+      setInnLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadProducts();
     if (initialAppId) {
@@ -458,6 +483,47 @@ export const ApplicationFlowScreen: React.FC<Props> = ({ initialAppId, initialPa
       {/* State View 1: Application Form (when no current app or in DRAFT) */}
       {(!currentApp || currentApp.status === 'DRAFT') && (
         <form onSubmit={handleCreateAndSubmit}>
+          {/* UC 1.3: автозаполнение реквизитов по ИНН */}
+          <div className="card">
+            <div className="card-title">0. Реквизиты компании (автозаполнение по ИНН)</div>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 240px' }}>
+                <label className="form-label">ИНН организации</label>
+                <input
+                  className="form-input"
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Например: 7701000001"
+                  value={innInput}
+                  onChange={(e) => setInnInput(e.target.value.replace(/\D/g, '').slice(0, 12))}
+                />
+              </div>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleInnLookup}
+                disabled={innLoading}
+                style={{ marginBottom: '0.1rem' }}
+              >
+                {innLoading ? 'Запрос в ФНС...' : 'Заполнить из ЕГРЮЛ'}
+              </button>
+            </div>
+            {innError && (
+              <div style={{ color: '#dc2626', fontSize: '0.85rem', marginTop: '0.5rem' }}>{innError}</div>
+            )}
+            {innResult && (
+              <div style={{ marginTop: '0.75rem', background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '6px', padding: '0.75rem', fontSize: '0.9rem' }}>
+                <div><strong>{innResult.name}</strong></div>
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  ОКВЭД: {innResult.okved} • Стаж бизнеса: {innResult.company_age_months} мес.
+                </div>
+                <div style={{ color: '#059669', fontSize: '0.8rem', marginTop: '0.25rem' }}>
+                  ✓ Данные получены из мока ФНС/ЕГРЮЛ
+                </div>
+              </div>
+            )}
+          </div>
+
           <div className="card">
             <div className="card-title">1. Выбор кредитного продукта</div>
             <div className="grid-3" style={{ marginBottom: '1.5rem' }}>

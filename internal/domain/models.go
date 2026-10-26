@@ -56,3 +56,23 @@ type BankDecisionExplanation struct {
 	Reasons        []string `json:"reasons"`
 	Recommendation string   `json:"recommendation"`
 }
+
+// OfficerSummaryRequest содержит данные заявки для генерации краткой выжимки
+// риск-офицеру (UC 2.2).
+type OfficerSummaryRequest struct {
+	ApplicationID       uint    `json:"application_id"`
+	CompanyName         string  `json:"company_name"`
+	INN                 string  `json:"inn"`
+	OKVED               string  `json:"okved"`
+	AgeMonths           int     `json:"company_age_months"`
+	MonthlyRevenue      float64 `json:"monthly_revenue"`
+	MonthlyNetProfit    float64 `json:"monthly_net_profit"`
+	RequestedAmount     float64 `json:"requested_amount"`
+	RequestedTermMonths int     `json:"requested_term_months"`
+	ScoreValue          float64 `json:"score_value"`
+	DSTI                float64 `json:"dsti"`
+	DelinquencyDays     int     `json:"bki_delinquency_days"`
+	BKIMonthlyPayment   float64 `json:"bki_active_loans_monthly_payment"`
+	HasBankruptcy       bool    `json:"has_bankruptcy"`
+	Status              string  `json:"status"`
+}

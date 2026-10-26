@@ -86,6 +86,19 @@ export const api = {
     return request('/products');
   },
 
+  // UC 1.3: автозаполнение реквизитов по ИНН (мок ФНС/ЕГРЮЛ).
+  lookupCompany: async (inn: string): Promise<{
+    inn: string;
+    name: string;
+    okved: string;
+    registration_date: string;
+    company_age_months: number;
+    status: string;
+    source: string;
+  }> => {
+    return request(`/company/lookup?inn=${encodeURIComponent(inn)}`);
+  },
+
   createApplication: async (data: {
     product_id: number;
     purpose: string;
@@ -164,6 +177,30 @@ export const api = {
     return request('/v1/advice/compare', {
       method: 'POST',
       body: JSON.stringify({ product_a: productA, product_b: productB }),
+    });
+  },
+
+  // UC 2.2: краткая выжимка по заявке для риск-офицера.
+  officerSummary: async (data: {
+    application_id: number;
+    company_name: string;
+    inn: string;
+    okved: string;
+    company_age_months: number;
+    monthly_revenue: number;
+    monthly_net_profit: number;
+    requested_amount: number;
+    requested_term_months: number;
+    score_value: number;
+    dsti: number;
+    bki_delinquency_days: number;
+    bki_active_loans_monthly_payment: number;
+    has_bankruptcy: boolean;
+    status: string;
+  }): Promise<{ summary: string }> => {
+    return request('/v1/advice/officer-summary', {
+      method: 'POST',
+      body: JSON.stringify(data),
     });
   },
 

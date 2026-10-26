@@ -91,3 +91,24 @@ func (h *AdvisorHandler) ExplainBankDecision(c *gin.Context) {
 		"explanation": explanation,
 	})
 }
+
+// OfficerSummary handles POST /api/v1/advice/officer-summary (UC 2.2).
+// Генерирует краткую выжимку по заявке для риск-офицера.
+func (h *AdvisorHandler) OfficerSummary(c *gin.Context) {
+	var req domain.OfficerSummaryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	summary, err := h.service.OfficerSummary(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"type":    "officer_summary",
+		"summary": summary,
+	})
+}

@@ -71,6 +71,54 @@ func (s *AdvisorService) ExplainBankDecision(ctx context.Context, decision domai
 	return fallbackExplainBankDecision(decision), nil
 }
 
+// OfficerSummary генерирует краткую выжимку по заявке для риск-офицера (UC 2.2).
+func (s *AdvisorService) OfficerSummary(ctx context.Context, data domain.OfficerSummaryRequest) (string, error) {
+	llmCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
+	defer cancel()
+
+	messages := ai.PromptOfficerSummary(data)
+	resp, err := s.client.Chat(llmCtx, messages, 0.4, 300)
+	if err == nil && len(strings.TrimSpace(resp)) > 30 {
+		return resp, nil
+	}
+
+	// Детерминированный fallback: собираем выжимку из показателей.
+	return fallbackOfficerSummary(data), nil
+}
+
+// fallbackOfficerSummary формирует выжимку без LLM по формализованным правилам.
+func fallbackOfficerSummary(d domain.OfficerSummaryRequest) string {
+	risk := "низкий"
+	recommendation := "одобрить заявку"
+	switch {
+	case d.HasBankruptcy || d.DelinquencyDays > 90 || d.MonthlyNetProfit <= 0:
+		risk = "высокий"
+		recommendation = "отказать"
+	case d.DSTI > 0.55:
+		risk = "высокий"
+		recommendation = "отказать или существенно снизить сумму"
+	case d.DSTI > 0.35 || d.DelinquencyDays > 0:
+		risk = "средний"
+		recommendation = "одобрить с уменьшением суммы"
+	}
+
+	factors := make([]string, 0, 2)
+	if d.MonthlyRevenue > 0 {
+		factors = append(factors, fmt.Sprintf("выручка %.0f руб/мес", d.MonthlyRevenue))
+	}
+	if d.DelinquencyDays > 0 {
+		factors = append(factors, fmt.Sprintf("просрочка %d дн.", d.DelinquencyDays))
+	} else {
+		factors = append(factors, "просрочек нет")
+	}
+	if d.DSTI > 0 {
+		factors = append(factors, fmt.Sprintf("DSTI %.0f%%", d.DSTI*100))
+	}
+
+	return fmt.Sprintf("Риск %s. %s. Рекомендую %s.",
+		risk, strings.Join(factors, ", "), recommendation)
+}
+
 func fallbackCompareProducts(productA, productB string) string {
 	nameA := strings.TrimSpace(productA)
 	if nameA == "" {

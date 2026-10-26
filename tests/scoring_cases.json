@@ -1,0 +1,167 @@
+{
+  "_comment": "Единый источник истины для паритета политики скоринга. Оба движка (Go internal/scoring/client.go Fallback и Python scoring_service/engine.py) обязаны давать одинаковый decision на этих кейсах. expected_decision заполняется из Python-эталона.",
+  "cases": [
+    {
+      "name": "approved_low_dsti",
+      "input": {
+        "company_inn": "7701000001",
+        "monthly_revenue": 2000000,
+        "monthly_net_profit": 600000,
+        "company_age_months": 100,
+        "requested_amount": 1500000,
+        "requested_term_months": 12,
+        "product_rate": 20,
+        "bki_active_loans_monthly_payment": 50000,
+        "bki_delinquency_days": 0,
+        "has_bankruptcy": false,
+        "documents_uploaded": false
+      },
+      "expected_decision": "APPROVED",
+      "expected_dsti": 0.3149
+    },
+    {
+      "name": "counter_offer_high_amount",
+      "input": {
+        "company_inn": "7701000001",
+        "monthly_revenue": 2000000,
+        "monthly_net_profit": 600000,
+        "company_age_months": 100,
+        "requested_amount": 10000000,
+        "requested_term_months": 12,
+        "product_rate": 20,
+        "bki_active_loans_monthly_payment": 50000,
+        "bki_delinquency_days": 0,
+        "has_bankruptcy": false,
+        "documents_uploaded": false
+      },
+      "expected_decision": "COUNTER_OFFER",
+      "expected_dsti": 1.6272
+    },
+    {
+      "name": "docs_required_young_no_history",
+      "input": {
+        "company_inn": "7701000003",
+        "monthly_revenue": 500000,
+        "monthly_net_profit": 100000,
+        "company_age_months": 1,
+        "requested_amount": 300000,
+        "requested_term_months": 6,
+        "product_rate": 18,
+        "bki_active_loans_monthly_payment": 0,
+        "bki_delinquency_days": 0,
+        "has_bankruptcy": false,
+        "documents_uploaded": false
+      },
+      "expected_decision": "DOCS_REQUIRED",
+      "expected_dsti": 0.5266
+    },
+    {
+      "name": "manual_review_boundary_score",
+      "input": {
+        "company_inn": "7701000009",
+        "monthly_revenue": 10000000,
+        "monthly_net_profit": 400000,
+        "company_age_months": 3,
+        "requested_amount": 900000,
+        "requested_term_months": 12,
+        "product_rate": 20,
+        "bki_active_loans_monthly_payment": 50000,
+        "bki_delinquency_days": 20,
+        "has_bankruptcy": false,
+        "documents_uploaded": false
+      },
+      "expected_decision": "MANUAL_REVIEW",
+      "expected_dsti": 0.3334
+    },
+    {
+      "name": "manual_review_after_docs",
+      "input": {
+        "company_inn": "7701000003",
+        "monthly_revenue": 500000,
+        "monthly_net_profit": 100000,
+        "company_age_months": 1,
+        "requested_amount": 300000,
+        "requested_term_months": 6,
+        "product_rate": 18,
+        "bki_active_loans_monthly_payment": 0,
+        "bki_delinquency_days": 0,
+        "has_bankruptcy": false,
+        "documents_uploaded": true
+      },
+      "expected_decision": "MANUAL_REVIEW",
+      "expected_dsti": 0.5266
+    },
+    {
+      "name": "rejected_bankruptcy",
+      "input": {
+        "company_inn": "7701000001",
+        "monthly_revenue": 2000000,
+        "monthly_net_profit": 600000,
+        "company_age_months": 100,
+        "requested_amount": 1500000,
+        "requested_term_months": 12,
+        "product_rate": 20,
+        "bki_active_loans_monthly_payment": 50000,
+        "bki_delinquency_days": 0,
+        "has_bankruptcy": true,
+        "documents_uploaded": false
+      },
+      "expected_decision": "REJECTED",
+      "expected_dsti": 0.3149
+    },
+    {
+      "name": "rejected_long_delinquency",
+      "input": {
+        "company_inn": "7701000001",
+        "monthly_revenue": 2000000,
+        "monthly_net_profit": 600000,
+        "company_age_months": 100,
+        "requested_amount": 1500000,
+        "requested_term_months": 12,
+        "product_rate": 20,
+        "bki_active_loans_monthly_payment": 50000,
+        "bki_delinquency_days": 120,
+        "has_bankruptcy": false,
+        "documents_uploaded": false
+      },
+      "expected_decision": "REJECTED",
+      "expected_dsti": 0.3149
+    },
+    {
+      "name": "rejected_no_capacity",
+      "input": {
+        "company_inn": "7701000001",
+        "monthly_revenue": 2000000,
+        "monthly_net_profit": 1000,
+        "company_age_months": 100,
+        "requested_amount": 1500000,
+        "requested_term_months": 12,
+        "product_rate": 20,
+        "bki_active_loans_monthly_payment": 50000,
+        "bki_delinquency_days": 0,
+        "has_bankruptcy": false,
+        "documents_uploaded": false
+      },
+      "expected_decision": "REJECTED",
+      "expected_dsti": 188.9518
+    },
+    {
+      "name": "rejected_zero_profit",
+      "input": {
+        "company_inn": "7701000001",
+        "monthly_revenue": 2000000,
+        "monthly_net_profit": 0,
+        "company_age_months": 100,
+        "requested_amount": 1500000,
+        "requested_term_months": 12,
+        "product_rate": 20,
+        "bki_active_loans_monthly_payment": 50000,
+        "bki_delinquency_days": 0,
+        "has_bankruptcy": false,
+        "documents_uploaded": false
+      },
+      "expected_decision": "REJECTED",
+      "expected_dsti": 1.0
+    }
+  ]
+}

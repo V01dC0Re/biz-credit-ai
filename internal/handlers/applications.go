@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"biz-credit-ai/internal/middleware"
+	"biz-credit-ai/internal/mocks"
 	"biz-credit-ai/internal/models"
 	"biz-credit-ai/internal/scoring"
 	"github.com/gin-gonic/gin"
@@ -220,16 +221,32 @@ func (h *Handler) runScoring(c *gin.Context, app models.Application, documents b
 		appError(c, err)
 		return
 	}
-	// Local FNS mock enriches missing revenue/age, without overwriting supplied financials.
+	// UC 3.1: обогащение данными из локальных моков ФНС/ЕГРЮЛ и БКИ.
+	// Моки не перезаписывают уже известные финансовые показатели компании.
+	fns := mocks.FNS(company.INN)
+	bki := mocks.BKI(company.INN)
 	if company.MonthlyRevenue == 0 {
 		company.MonthlyRevenue = company.Revenue / 12
 	}
-	if company.AgeMonths == 0 && company.RegistrationDate != nil {
-		now := time.Now()
-		company.AgeMonths = (now.Year()-company.RegistrationDate.Year())*12 + int(now.Month()-company.RegistrationDate.Month())
-		if company.AgeMonths < 0 {
-			company.AgeMonths = 0
+	if company.AgeMonths == 0 {
+		company.AgeMonths = fns.AgeMonths
+	}
+	if company.RegistrationDate == nil && fns.RegistrationDate != "" {
+		if t, err := time.Parse("2006-01-02", fns.RegistrationDate); err == nil {
+			company.RegistrationDate = &t
 		}
+	}
+	if company.OKVED == "" {
+		company.OKVED = fns.OKVED
+	}
+	if company.BkiMonthlyPayment == 0 {
+		company.BkiMonthlyPayment = bki.MonthlyPayment
+	}
+	if company.BkiDelinquencyDays == 0 {
+		company.BkiDelinquencyDays = bki.DelinquencyDays
+	}
+	if !company.HasBankruptcy {
+		company.HasBankruptcy = fns.HasBankruptcy || bki.HasBankruptcy
 	}
 	product, ok := models.FindProduct(app.ProductID)
 	if !ok {
@@ -238,8 +255,16 @@ func (h *Handler) runScoring(c *gin.Context, app models.Application, documents b
 		return
 	}
 	err := db.Transaction(func(tx *gorm.DB) error {
-		// Only the FNS enrichment fields are updated; the balance must not be overwritten.
-		if err := tx.Model(&company).Updates(map[string]any{"monthly_revenue": company.MonthlyRevenue, "age_months": company.AgeMonths}).Error; err != nil {
+		// Обновляем только поля обогащения; баланс и прочие данные не трогаем.
+		if err := tx.Model(&company).Updates(map[string]any{
+			"monthly_revenue":      company.MonthlyRevenue,
+			"age_months":           company.AgeMonths,
+			"okved":                company.OKVED,
+			"registration_date":    company.RegistrationDate,
+			"bki_monthly_payment":  company.BkiMonthlyPayment,
+			"bki_delinquency_days": company.BkiDelinquencyDays,
+			"has_bankruptcy":       company.HasBankruptcy,
+		}).Error; err != nil {
 			return err
 		}
 		r := tx.Model(&models.Application{}).Where("id = ? AND status = ?", app.ID, app.Status).Update("status", models.StatusScoring)
@@ -631,4 +656,3 @@ func (h *Handler) DownloadDocument(c *gin.Context) {
 	c.Header("Content-Disposition", fmt.Sprintf("inline; filename=%q", doc.Filename))
 	c.Data(http.StatusOK, contentType, doc.Data)
 }
-

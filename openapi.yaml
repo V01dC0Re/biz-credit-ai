@@ -158,6 +158,119 @@ paths:
                     items:
                       $ref: '#/components/schemas/Product'
 
+  /api/company/lookup:
+    get:
+      tags:
+        - Company
+      summary: Автозаполнение реквизитов по ИНН (UC 1.3)
+      description: Возвращает реквизиты компании из локального мока ФНС/ЕГРЮЛ для предзаполнения формы заявки.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: inn
+          in: query
+          required: true
+          schema:
+            type: string
+            pattern: '^[0-9]{10,12}$'
+          description: ИНН организации (10 или 12 цифр)
+      responses:
+        '200':
+          description: Реквизиты компании
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inn:
+                    type: string
+                  name:
+                    type: string
+                  okved:
+                    type: string
+                  registration_date:
+                    type: string
+                  company_age_months:
+                    type: integer
+                  status:
+                    type: string
+                  source:
+                    type: string
+        '400':
+          description: Некорректный ИНН
+
+  /internal/mocks/fns/{inn}:
+    get:
+      tags:
+        - Mocks
+      summary: Мок ФНС «Прозрачный бизнес» / ЕГРЮЛ (UC 3.1)
+      description: Симулятор государственного сервиса. Для известных ИНН возвращает данные из каталога, для остальных — детерминированно сгенерированные.
+      parameters:
+        - name: inn
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Данные ФНС/ЕГРЮЛ
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inn:
+                    type: string
+                  name:
+                    type: string
+                  okved:
+                    type: string
+                  registration_date:
+                    type: string
+                  company_age_months:
+                    type: integer
+                  status:
+                    type: string
+                  has_bankruptcy:
+                    type: boolean
+                  source:
+                    type: string
+
+  /internal/mocks/bki/{inn}:
+    get:
+      tags:
+        - Mocks
+      summary: Мок бюро кредитных историй (UC 3.1)
+      description: Симулятор БКИ. Для известных ИНН возвращает данные из каталога, для остальных — детерминированно сгенерированные.
+      parameters:
+        - name: inn
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Кредитная история
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  inn:
+                    type: string
+                  active_loans:
+                    type: integer
+                  bki_active_loans_monthly_payment:
+                    type: integer
+                  bki_delinquency_days:
+                    type: integer
+                  has_bankruptcy:
+                    type: boolean
+                  credit_history_score:
+                    type: integer
+                  source:
+                    type: string
+
   /api/applications:
     get:
       tags:
@@ -528,6 +641,66 @@ paths:
                     type: string
                   explanation:
                     type: string
+
+  /api/v1/advice/officer-summary:
+    post:
+      tags:
+        - AI Advisor
+      summary: Краткая выжимка по заявке для риск-офицера (UC 2.2)
+      description: Генерирует уровень риска, ключевые факторы и рекомендацию. При недоступности LLM используется детерминированный fallback.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - application_id
+              properties:
+                application_id:
+                  type: integer
+                company_name:
+                  type: string
+                inn:
+                  type: string
+                okved:
+                  type: string
+                company_age_months:
+                  type: integer
+                monthly_revenue:
+                  type: number
+                monthly_net_profit:
+                  type: number
+                requested_amount:
+                  type: number
+                requested_term_months:
+                  type: integer
+                score_value:
+                  type: number
+                dsti:
+                  type: number
+                bki_delinquency_days:
+                  type: integer
+                bki_active_loans_monthly_payment:
+                  type: number
+                has_bankruptcy:
+                  type: boolean
+                status:
+                  type: string
+      responses:
+        '200':
+          description: Краткая выжимка для офицера
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    example: officer_summary
+                  summary:
+                    type: string
+                    example: "Риск высокий. Низкая выручка и критический DSTI. Рекомендую отказать."
 
   /api/v1/scoring/evaluate:
     post:

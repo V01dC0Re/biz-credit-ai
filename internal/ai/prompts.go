@@ -73,6 +73,55 @@ func PromptContextualHint(request domain.CreditAdviceRequest) []ChatMessage {
 	}
 }
 
+// OfficerSummaryPrompt — системная роль для краткой выжимки риск-офицеру.
+const OfficerSummaryPrompt = `Ты — риск-аналитик банка. Готовишь краткую выжимку по кредитной заявке для кредитного офицера.
+
+Правила:
+1. Ровно 2–3 предложения, без списков и маркдауна
+2. Укажи уровень риска (низкий/средний/высокий)
+3. Назови 1–2 ключевых фактора (выручка, просрочки, DSTI, возраст бизнеса)
+4. Дай конкретную рекомендацию: одобрить / одобрить с уменьшением суммы / запросить документы / отказать
+5. Отвечай на русском языке`
+
+// PromptOfficerSummary формирует запрос краткой выжимки по заявке для офицера (UC 2.2).
+func PromptOfficerSummary(data domain.OfficerSummaryRequest) []ChatMessage {
+	content := fmt.Sprintf(`Заявка №%d на кредит.
+
+Компания: %s (ИНН %s, ОКВЭД %s, стаж %d мес.)
+Выручка: %.0f руб/мес, чистая прибыль: %.0f руб/мес
+Запрошено: %.0f руб на %d мес.
+Скоринг-балл: %.0f/1000, DSTI: %.0f%%
+Просрочки в БКИ: %d дней, платежи по действующим кредитам: %.0f руб/мес
+Признаки банкротства: %s
+Текущий статус: %s`,
+		data.ApplicationID,
+		data.CompanyName, data.INN, data.OKVED, data.AgeMonths,
+		data.MonthlyRevenue, data.MonthlyNetProfit,
+		data.RequestedAmount, data.RequestedTermMonths,
+		data.ScoreValue, data.DSTI*100,
+		data.DelinquencyDays, data.BKIMonthlyPayment,
+		boolRu(data.HasBankruptcy),
+		data.Status,
+	)
+
+	content += `
+
+Сформируй краткую выжимку для кредитного офицера по формату:
+«Риск <уровень>. <ключевые факторы>. Рекомендую <действие>».`
+
+	return []ChatMessage{
+		{Role: "system", Content: OfficerSummaryPrompt},
+		{Role: "user", Content: content},
+	}
+}
+
+func boolRu(v bool) string {
+	if v {
+		return "да"
+	}
+	return "нет"
+}
+
 // PromptExplainBankDecision explains bank's counter-offer or rejection
 func PromptExplainBankDecision(decision domain.BankDecisionExplanation) []ChatMessage {
 	content := fmt.Sprintf(`Банк принял следующее решение: %s

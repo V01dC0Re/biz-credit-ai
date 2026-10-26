@@ -119,54 +119,217 @@ func Validate(r Result, in Request) error {
 	}
 	return nil
 }
+
+// Пороговые значения кредитной политики.
+//
+// ВАЖНО: эти константы обязаны совпадать со значениями по умолчанию в
+// scoring_service/config.py (Settings). Go-fallback — это точное зеркало
+// Python-движка, чтобы решение по заявке не зависело от того, доступен ли
+// ML-сервис. При изменении политики правьте оба места синхронно.
+const (
+	dstiApproveMax      = 0.35  // DSTI <= 0.35 -> одобрение
+	dstiCounterMax      = 0.55  // DSTI > 0.55 -> отказ
+	safePaymentRatio    = 0.35  // доля прибыли под новый платёж
+	delinquencyStopDays = 90    // просрочка > 90 дней -> стоп-фактор
+	youngBusinessMonths = 6     // возраст < 6 мес. -> дозапрос документов
+	scoreManualLow      = 450   // нижняя граница пограничного скора
+	scoreManualHigh     = 550   // верхняя граница пограничного скора
+	minOfferAmount      = 10000 // минимальная сумма встречного предложения
+	maxTermMonths       = 60    // максимальный срок кредита
+	amountRoundStep     = 50000 // шаг округления суммы вниз
+)
+
+// scoreOf повторяет балльную модель scoring_service/engine.py::_score.
+func scoreOf(in Request, dsti float64) float64 {
+	score := 500.0
+
+	switch {
+	case dsti <= dstiApproveMax:
+		score += 250
+	case dsti <= dstiCounterMax:
+		score += 50
+	default:
+		score -= 250
+	}
+
+	switch {
+	case in.CompanyAgeMonths >= 24:
+		score += 150
+	case in.CompanyAgeMonths >= 12:
+		score += 100
+	case in.CompanyAgeMonths < youngBusinessMonths:
+		score -= 100
+	}
+
+	switch {
+	case in.BKIDelinquencyDays == 0:
+		score += 100
+	case in.BKIDelinquencyDays <= 30:
+		score -= 50
+	default:
+		score -= 200
+	}
+
+	if in.MonthlyRevenue > 0 {
+		margin := float64(in.MonthlyNetProfit) / float64(in.MonthlyRevenue)
+		if margin >= 0.2 {
+			score += 50
+		} else if margin < 0.05 {
+			score -= 50
+		}
+	}
+
+	if in.BKIMonthlyPayment > 0 {
+		score -= 50
+	}
+
+	if score < 0 {
+		score = 0
+	}
+	if score > 1000 {
+		score = 1000
+	}
+	return score
+}
+
+// solveMaxAmount — максимальная сумма кредита при заданном предельном платеже.
+func solveMaxAmount(maxPayment float64, term int, rate float64) float64 {
+	if maxPayment <= 0 || term <= 0 {
+		return 0
+	}
+	r := rate / 1200
+	if r == 0 {
+		return maxPayment * float64(term)
+	}
+	return maxPayment * (1 - math.Pow(1+r, -float64(term))) / r
+}
+
+func roundDown(value float64, step int64) int64 {
+	if step <= 0 {
+		return int64(value)
+	}
+	return int64(math.Floor(value/float64(step))) * step
+}
+
+// buildCounterOffer повторяет scoring_service/engine.py::_build_counter_offer:
+// сначала удлиняем срок, сохраняя сумму; если не помогает — снижаем сумму.
+func buildCounterOffer(in Request, pmtMax float64) (amount int64, term int, payment int64, ok bool) {
+	if pmtMax <= 0 {
+		return 0, 0, 0, false
+	}
+	for t := in.RequestedTermMonths; t <= maxTermMonths; t++ {
+		p := Payment(in.RequestedAmount, t, in.ProductRate)
+		if float64(p) <= pmtMax {
+			return in.RequestedAmount, t, p, true
+		}
+	}
+	a := roundDown(solveMaxAmount(pmtMax, in.RequestedTermMonths, in.ProductRate), amountRoundStep)
+	if a > in.RequestedAmount {
+		a = in.RequestedAmount
+	}
+	if a < minOfferAmount {
+		return 0, 0, 0, false
+	}
+	return a, in.RequestedTermMonths, Payment(a, in.RequestedTermMonths, in.ProductRate), true
+}
+
+func rejectResult(base Result, reason string) Result {
+	base.Decision = models.StatusRejected
+	base.ApprovedAmount = 0
+	base.ApprovedTermMonths = 0
+	base.MonthlyPayment = 0
+	base.RejectionReason = reason
+	base.AIExplanation = reason
+	if base.ScoreValue > 300 {
+		base.ScoreValue = 300
+	}
+	return base
+}
+
+// Fallback — детерминированная копия политики Python-движка скоринга.
+// Используется, когда ML-сервис недоступен, и обязан давать тот же результат.
 func Fallback(in Request, documentsUploaded bool) Result {
 	payment := Payment(in.RequestedAmount, in.RequestedTermMonths, in.ProductRate)
-	r := Result{Decision: models.StatusApproved, ApprovedAmount: in.RequestedAmount, ApprovedTermMonths: in.RequestedTermMonths, MonthlyPayment: payment, InterestRate: in.ProductRate, ScoreValue: 800, AIExplanation: "Демонстрационная оценка: прибыль позволяет обслуживать кредит."}
+	dsti := 1.0
 	if in.MonthlyNetProfit > 0 {
-		r.DSTI = float64(payment+in.BKIMonthlyPayment) / float64(in.MonthlyNetProfit)
+		dsti = float64(payment+in.BKIMonthlyPayment) / float64(in.MonthlyNetProfit)
 	}
-	switch {
-	case in.HasBankruptcy || in.BKIDelinquencyDays > 30 || in.MonthlyNetProfit <= 0:
-		r.Decision = models.StatusRejected
-		r.ScoreValue = 200
-		switch {
-		case in.HasBankruptcy:
-			r.RejectionReason = "У компании есть признаки банкротства."
-		case in.BKIDelinquencyDays > 30:
-			r.RejectionReason = "Просрочка по действующим кредитам превышает 30 дней."
-		default:
-			r.RejectionReason = "Отсутствует положительная чистая прибыль для обслуживания кредита."
+	score := scoreOf(in, dsti)
+
+	base := Result{
+		Decision:     models.StatusApproved,
+		ScoreValue:   score,
+		DSTI:         dsti,
+		InterestRate: in.ProductRate,
+	}
+
+	// 1. Стоп-факторы перебивают всё.
+	if in.HasBankruptcy {
+		return rejectResult(base, "По данным ФНС у компании есть признаки банкротства")
+	}
+	if in.BKIDelinquencyDays > delinquencyStopDays {
+		return rejectResult(base, fmt.Sprintf(
+			"Просрочка %d дней превышает порог %d дней", in.BKIDelinquencyDays, delinquencyStopDays))
+	}
+	if in.MonthlyNetProfit <= 0 {
+		return rejectResult(base, "Отсутствует положительная чистая прибыль для обслуживания кредита")
+	}
+
+	// 2. Молодой бизнес без кредитной истории -> дозапрос документов.
+	if !documentsUploaded && in.CompanyAgeMonths < youngBusinessMonths &&
+		in.BKIMonthlyPayment == 0 && in.BKIDelinquencyDays == 0 {
+		base.Decision = models.StatusDocsRequired
+		base.AIExplanation = "Для молодого бизнеса требуется выписка, подтверждающая обороты."
+		return base
+	}
+
+	// 3. Документы уже загружены -> ручная верификация андеррайтером.
+	if documentsUploaded {
+		base.Decision = models.StatusManualReview
+		base.AIExplanation = "Документы получены: требуется ручная верификация андеррайтером."
+		return base
+	}
+
+	// 4. DSTI в пределах нормы -> одобрение (либо ручной разбор при пограничном скоре).
+	if dsti <= dstiApproveMax {
+		if score >= scoreManualLow && score <= scoreManualHigh {
+			base.Decision = models.StatusManualReview
+			base.AIExplanation = "Пограничный скоринг-балл: нужна ручная оценка."
+			return base
 		}
-		r.AIExplanation = r.RejectionReason
-	case in.CompanyAgeMonths < 6 && !documentsUploaded:
-		r.Decision = models.StatusDocsRequired
-		r.ScoreValue = 450
-		r.AIExplanation = "Для молодого бизнеса требуется выписка, подтверждающая обороты."
-	case in.BKIDelinquencyDays > 0 || in.CompanyAgeMonths < 6:
-		r.Decision = models.StatusManualReview
-		r.ScoreValue = 500
-		r.AIExplanation = "Требуется проверка риск-офицером: небольшой возраст бизнеса или просрочки."
-	case r.DSTI > 0.5:
-		capacity := float64(in.MonthlyNetProfit)*0.5 - float64(in.BKIMonthlyPayment)
-		amount := int64(math.Floor(float64(in.RequestedAmount) * capacity / float64(payment)))
-		if amount < 10000 {
-			r.Decision = models.StatusRejected
-			r.ScoreValue = 250
-			r.RejectionReason = "Недостаточно свободной прибыли для обслуживания кредита."
-			r.AIExplanation = r.RejectionReason
-		} else {
-			r.Decision = models.StatusCounterOffer
-			r.ScoreValue = 600
-			r.ApprovedAmount = amount
-			r.MonthlyPayment = Payment(amount, in.RequestedTermMonths, in.ProductRate)
-			r.DSTI = float64(r.MonthlyPayment+in.BKIMonthlyPayment) / float64(in.MonthlyNetProfit)
-			r.AIExplanation = "Предлагаем уменьшить сумму, чтобы платежи не превышали 50% чистой прибыли."
+		base.Decision = models.StatusApproved
+		base.ApprovedAmount = in.RequestedAmount
+		base.ApprovedTermMonths = in.RequestedTermMonths
+		base.MonthlyPayment = payment
+		base.AIExplanation = "Демонстрационная оценка: прибыль позволяет обслуживать кредит."
+		return base
+	}
+
+	// 5. Пограничный скор при наличии просрочек -> ручной разбор.
+	if score >= scoreManualLow && score <= scoreManualHigh && in.BKIDelinquencyDays > 0 {
+		base.Decision = models.StatusManualReview
+		base.AIExplanation = "Пограничный скоринг-балл при наличии просрочек: нужна ручная оценка."
+		return base
+	}
+
+	// 6. Встречное предложение с безопасными условиями.
+	pmtMax := float64(in.MonthlyNetProfit)*safePaymentRatio - float64(in.BKIMonthlyPayment)
+	amount, term, newPayment, ok := buildCounterOffer(in, pmtMax)
+	if !ok {
+		reason := "Недостаточно свободной прибыли для безопасного платежа"
+		if dsti > dstiCounterMax {
+			reason = fmt.Sprintf("Долговая нагрузка %.0f%% превышает допустимый предел банка", dsti*100)
 		}
+		return rejectResult(base, reason)
 	}
-	if r.Decision != models.StatusApproved && r.Decision != models.StatusCounterOffer {
-		r.ApprovedAmount = 0
-		r.ApprovedTermMonths = 0
-		r.MonthlyPayment = 0
+	base.Decision = models.StatusCounterOffer
+	base.ApprovedAmount = amount
+	base.ApprovedTermMonths = term
+	base.MonthlyPayment = newPayment
+	// DSTI остаётся исходным (по запрошенной сумме) — как в Python-движке.
+	if dsti > dstiCounterMax {
+		base.ScoreValue = math.Min(1000, score+300)
 	}
-	return r
+	base.AIExplanation = "Предлагаем безопасные условия, чтобы платежи не превышали 35% чистой прибыли."
+	return base
 }
