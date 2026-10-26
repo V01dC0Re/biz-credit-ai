@@ -1,16 +1,22 @@
+
 :root {
-  --primary: #ef3124;
-  --primary-hover: #d81a0d;
-  --primary-light: #fef2f2;
-  --bg: #f8fafc;
-  --surface: #ffffff;
-  --text-main: #0f172a;
-  --text-muted: #64748b;
-  --border: #e2e8f0;
+  --primary: #C45129;
+  --primary-hover: #A64020;
+  --primary-light: #FFE6DD;
+
+  --bg: #F7F9FB;
+  --surface: #FFFFFF;
+
+  --text-main: #233142;
+  --text-muted: #455D7A;
+
+  --border: #D5DEE5;
   --radius: 12px;
-  --shadow: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
-  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.05);
+
+  --shadow: 0 2px 8px rgb(35 49 66 / 6%);
+  --shadow-lg: 0 8px 24px rgb(35 49 66 / 10%);
 }
+
 
 * {
   box-sizing: border-box;
@@ -18,13 +24,17 @@
   padding: 0;
 }
 
+
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-family: Inter, -apple-system, BlinkMacSystemFont,
+  "Segoe UI", sans-serif;
   background-color: var(--bg);
   color: var(--text-main);
-  line-height: 1.5;
+  line-height: 1.55;
   -webkit-font-smoothing: antialiased;
+  font-optical-sizing: auto;
 }
+
 
 /* Layout */
 .app-container {
@@ -1039,3 +1049,98 @@ tr:hover td {
 }
 
 
+
+h1, h2, h3 {
+  color: var(--text-main);
+  letter-spacing: -0.035em;
+  line-height: 1.2;
+}
+
+h1 {
+  font-weight: 750;
+}
+
+h2, h3 {
+  font-weight: 650;
+}
+
+button, input, select, textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+
+/* Общая визуальная полировка */
+
+.card,
+.demo-card,
+.news-card,
+.calculator-card {
+  border-radius: 14px;
+  border-color: var(--border);
+}
+
+.card {
+  box-shadow: var(--shadow);
+  transition: box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.card:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+.btn {
+  border-radius: 9px;
+  transition:
+          background-color 160ms ease,
+          box-shadow 160ms ease,
+          transform 160ms ease;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+  box-shadow: 0 4px 12px rgb(196 81 41 / 20%);
+}
+
+.demo-card:hover,
+.news-card:hover {
+  border-color: var(--primary);
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+
+::selection {
+  background: var(--primary-light);
+  color: var(--text-main);
+}
+
+
+.dashboard-application-card {
+  border: 1px solid #CDDDE9;
+  border-radius: 16px;
+  box-shadow: 0 6px 20px rgb(35 49 66 / 7%);
+  padding: 24px;
+}
+
+.dashboard-application-card .card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #233142;
+  margin-bottom: 20px;
+}
+
+.dashboard-application-card .stat-tile {
+  border-radius: 12px;
+  border: 1px solid #D5DEE5;
+  background: #F7F9FB;
+  padding: 16px;
+}
